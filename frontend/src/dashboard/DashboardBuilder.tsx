@@ -5,7 +5,7 @@ import { Settings, Trash2, GripHorizontal, Layout as LayoutIcon, CheckCircle2, A
 import WidgetSettingsModal from './WidgetSettingsModal.tsx';
 import WidgetRenderer from '../widgets/WidgetRenderer.tsx';
 import { getDefaultWidgetConfig, type WidgetConfig } from './widgetConfig.ts';
-import { api } from '../lib/api.ts';
+import { api, getApiErrorMessage } from '../lib/api.ts';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
 
@@ -211,6 +211,7 @@ export default function DashboardBuilder() {
   const [orders, setOrders] = useState<DashboardOrder[]>([]);
   const [layouts, setLayouts] = useState<LayoutMap>(initialLayouts);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [widgetSettingsSaving, setWidgetSettingsSaving] = useState(false);
   const [editingWidget, setEditingWidget] = useState<Widget | null>(null);
@@ -280,11 +281,13 @@ export default function DashboardBuilder() {
       setOrders(response.data);
     } catch (error) {
       console.error('Failed to fetch orders', error);
+      setLoadError((current) => current ?? getApiErrorMessage(error, 'dashboard data'));
     }
   };
 
   const fetchDashboard = async () => {
     try {
+      setLoadError(null);
       const response = await api.get<DashboardResponse>('/dashboard');
       setDashboardId(response.data.id);
 
@@ -318,6 +321,7 @@ export default function DashboardBuilder() {
       setLayouts(nextLayouts);
     } catch (error) {
       console.error('Failed to load dashboard', error);
+      setLoadError(getApiErrorMessage(error, 'dashboard'));
     } finally {
       setLoading(false);
     }
@@ -697,6 +701,11 @@ export default function DashboardBuilder() {
         </div>
 
         <div className="p-4 min-h-screen">
+          {loadError && (
+            <div className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 shadow-sm">
+              {loadError}
+            </div>
+          )}
           <ResponsiveGridLayout
             className={`layout ${isConfigMode ? 'config-mode' : ''}`}
             style={{ minHeight: 'calc(100vh - 150px)' }}

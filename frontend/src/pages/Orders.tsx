@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Plus } from 'lucide-react';
 import OrdersTable from '../components/OrdersTable.tsx';
 import OrderModal from '../forms/OrderModal.tsx';
-import { api } from '../lib/api.ts';
+import { api, getApiErrorMessage } from '../lib/api.ts';
 
 interface Order {
   id: number;
@@ -38,7 +38,7 @@ export default function Orders() {
       setOrders(response.data);
     } catch (error) {
       console.error('Failed to fetch orders', error);
-      setErrorMsg('Unable to load orders right now. Please try again.');
+      setErrorMsg(getApiErrorMessage(error, 'orders'));
     } finally {
       setLoading(false);
     }
@@ -65,7 +65,7 @@ export default function Orders() {
         await fetchOrders();
       } catch (error) {
         console.error('Failed to delete order', error);
-        setErrorMsg('Unable to delete the order right now. Please try again.');
+        setErrorMsg(getApiErrorMessage(error, 'orders'));
       }
     }
   };
