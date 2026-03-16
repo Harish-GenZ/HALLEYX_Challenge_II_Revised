@@ -1,0 +1,47 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+model Order {
+  id          Int      @id @default(autoincrement())
+  firstName   String
+  lastName    String
+  email       String
+  phone       String
+  address     String
+  city        String
+  state       String
+  postalCode  String
+  country     String
+  product     String
+  quantity    Int
+  unitPrice   Float
+  totalAmount Float
+  status      String
+  createdBy   String
+  createdAt   DateTime @default(now())
+}
+
+model Dashboard {
+  id        Int      @id @default(autoincrement())
+  name      String
+  createdAt DateTime @default(now())
+  widgets   Widget[]
+}
+
+model Widget {
+  id          Int       @id @default(autoincrement())
+  dashboardId Int
+  type        String
+  title       String
+  width       Int
+  height      Int
+  positionX   Int
+  positionY   Int
+  config      Json
+  dashboard   Dashboard @relation(fields: [dashboardId], references: [id])
+}
