@@ -11,6 +11,8 @@ const orderRoutes_1 = __importDefault(require("./routes/orderRoutes"));
 const dashboardRoutes_1 = __importDefault(require("./routes/dashboardRoutes"));
 app.use((0, cors_1.default)());
 app.use(express_1.default.json());
+app.use('/api/orders', orderRoutes_1.default);
+app.use('/api/dashboard', dashboardRoutes_1.default);
 app.use('/orders', orderRoutes_1.default);
 app.use('/dashboard', dashboardRoutes_1.default);
 // Routes will be added here

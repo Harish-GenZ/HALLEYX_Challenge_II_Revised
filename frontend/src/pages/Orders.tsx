@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
 import { Plus } from 'lucide-react';
 import OrdersTable from '../components/OrdersTable.tsx';
 import OrderModal from '../forms/OrderModal.tsx';
+import { api } from '../lib/api.ts';
 
 interface Order {
   id: number;
@@ -34,7 +34,7 @@ export default function Orders() {
     setLoading(true);
     setErrorMsg(null);
     try {
-      const response = await axios.get('http://localhost:5000/orders');
+      const response = await api.get('/orders');
       setOrders(response.data);
     } catch (error) {
       console.error('Failed to fetch orders', error);
@@ -61,7 +61,7 @@ export default function Orders() {
   const handleDelete = async (id: number) => {
     if (confirm('Are you sure you want to delete this order?')) {
       try {
-        await axios.delete(`http://localhost:5000/orders/${id}`);
+        await api.delete(`/orders/${id}`);
         await fetchOrders();
       } catch (error) {
         console.error('Failed to delete order', error);

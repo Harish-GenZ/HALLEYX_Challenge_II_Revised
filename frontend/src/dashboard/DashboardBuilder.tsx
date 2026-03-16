@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type React from 'react';
 import { Responsive, WidthProvider } from 'react-grid-layout/legacy';
-import axios from 'axios';
 import { Settings, Trash2, GripHorizontal, Layout as LayoutIcon, CheckCircle2, AlertCircle, Menu, X } from 'lucide-react';
 import WidgetSettingsModal from './WidgetSettingsModal.tsx';
 import WidgetRenderer from '../widgets/WidgetRenderer.tsx';
 import { getDefaultWidgetConfig, type WidgetConfig } from './widgetConfig.ts';
+import { api } from '../lib/api.ts';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
 
@@ -276,7 +276,7 @@ export default function DashboardBuilder() {
 
   const fetchOrders = async () => {
     try {
-      const response = await axios.get('http://localhost:5000/orders');
+      const response = await api.get('/orders');
       setOrders(response.data);
     } catch (error) {
       console.error('Failed to fetch orders', error);
@@ -285,7 +285,7 @@ export default function DashboardBuilder() {
 
   const fetchDashboard = async () => {
     try {
-      const response = await axios.get<DashboardResponse>('http://localhost:5000/dashboard');
+      const response = await api.get<DashboardResponse>('/dashboard');
       setDashboardId(response.data.id);
 
       const loadedWidgets = response.data.widgets.map((widgetRecord) => ({
@@ -471,7 +471,7 @@ export default function DashboardBuilder() {
 
     setSaving(true);
     try {
-      await axios.post(`http://localhost:5000/dashboard/${dashboardId}/widgets`, {
+      await api.post(`/dashboard/${dashboardId}/widgets`, {
         widgets: widgetsToPersist
       });
       setToastMsg({ type: 'success', text: successText });

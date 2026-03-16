@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { FormEvent } from 'react';
-import axios from 'axios';
 import { X } from 'lucide-react';
+import { api } from '../lib/api.ts';
 
 interface Order {
   id?: number;
@@ -103,9 +103,9 @@ export default function OrderModal({ order, onClose }: { order?: Order | null, o
       };
 
       if (order?.id) {
-        await axios.put(`http://localhost:5000/orders/${order.id}`, payload);
+        await api.put(`/orders/${order.id}`, payload);
       } else {
-        await axios.post('http://localhost:5000/orders', payload);
+        await api.post('/orders', payload);
       }
       onClose(true);
     } catch (error) {

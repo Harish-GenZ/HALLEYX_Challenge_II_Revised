@@ -10,6 +10,8 @@ import dashboardRoutes from './routes/dashboardRoutes';
 app.use(cors());
 app.use(express.json());
 
+app.use('/api/orders', orderRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 app.use('/orders', orderRoutes);
 app.use('/dashboard', dashboardRoutes);
 
