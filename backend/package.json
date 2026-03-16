@@ -4,9 +4,11 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate deploy",
     "start": "node dist/server.js",
     "dev": "tsx server.ts",
-    "build": "tsc"
+    "build": "prisma generate && tsc"
   },
   "keywords": [],
   "author": "",
