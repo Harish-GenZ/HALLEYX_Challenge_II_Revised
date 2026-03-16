@@ -1,14 +1,13 @@
 import { useState } from 'react';
 import { X } from 'lucide-react';
-
-interface WidgetConfig {
-  type?: string;
-  xAxis?: string;
-  yAxis?: string;
-  metric?: string;
-  aggregation?: string;
-  color?: string;
-}
+import {
+  getDefaultWidgetConfig,
+  TABLE_COLUMN_OPTIONS,
+  TABLE_DEFAULT_COLUMNS,
+  TABLE_PAGE_SIZE_OPTIONS,
+  type TableColumnKey,
+  type WidgetConfig,
+} from './widgetConfig.ts';
 
 interface Widget {
   id: string;
@@ -21,51 +20,26 @@ interface Widget {
   config: WidgetConfig;
 }
 
-function getDefaultWidgetConfig(type: string) {
-  if (type === 'KPI Card') {
-    return {
-      type: 'kpi_card',
-      metric: 'totalAmount',
-      aggregation: 'sum',
-      color: '#10b981',
-    };
-  }
-
-  if (type === 'Table') {
-    return {
-      type: 'table',
-    };
-  }
-
-  return {
-    type: type.toLowerCase().replace(/\s+/g, '_'),
-    xAxis: 'product',
-    yAxis: 'totalAmount',
-    aggregation: 'sum',
-    color: '#10b981',
-  };
-}
-
-export default function WidgetSettingsModal({ 
-  widget, 
-  onSave, 
-  onClose 
-}: { 
-  widget: Widget, 
-  onSave: (updatedWidget: Widget) => void, 
-  onClose: () => void 
+export default function WidgetSettingsModal({
+  widget,
+  onSave,
+  onClose,
+  isSaving = false
+}: {
+  widget: Widget,
+  onSave: (updatedWidget: Widget) => Promise<void> | void,
+  onClose: () => void,
+  isSaving?: boolean
 }) {
   const [formData, setFormData] = useState<Widget>(widget);
-  const [configParams, setConfigParams] = useState<WidgetConfig>(() => {
-    return {
-      ...getDefaultWidgetConfig(widget.type),
-      ...(widget.config || {}),
-    };
-  });
+  const [configParams, setConfigParams] = useState<WidgetConfig>(() => ({
+    ...getDefaultWidgetConfig(widget.type),
+    ...(widget.config || {}),
+  }));
 
   const handleBaseChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       [name]: name === 'width' || name === 'height' ? Number(value) : value
     }));
@@ -73,12 +47,31 @@ export default function WidgetSettingsModal({
 
   const handleConfigChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setConfigParams((prev) => ({ ...prev, [name]: value }));
+    setConfigParams((prev) => ({
+      ...prev,
+      [name]: name === 'pageSize' ? Number(value) : value
+    }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleTableColumnToggle = (columnKey: TableColumnKey) => {
+    setConfigParams((prev) => {
+      const existingColumns = prev.columns && prev.columns.length > 0
+        ? prev.columns
+        : TABLE_DEFAULT_COLUMNS;
+      const nextColumns = existingColumns.includes(columnKey)
+        ? existingColumns.filter((column) => column !== columnKey)
+        : [...existingColumns, columnKey];
+
+      return {
+        ...prev,
+        columns: nextColumns.length > 0 ? nextColumns : existingColumns,
+      };
+    });
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onSave({
+    await onSave({
       ...formData,
       config: configParams
     });
@@ -87,6 +80,9 @@ export default function WidgetSettingsModal({
   const isChart = ['Bar Chart', 'Line Chart', 'Pie Chart'].includes(widget.type);
   const isKPI = widget.type === 'KPI Card';
   const isTable = widget.type === 'Table';
+  const selectedColumns = configParams.columns && configParams.columns.length > 0
+    ? configParams.columns
+    : TABLE_DEFAULT_COLUMNS;
 
   return (
     <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-end z-50 transition-all duration-300">
@@ -103,15 +99,13 @@ export default function WidgetSettingsModal({
           <h2 className="text-xl font-semibold text-gray-800">
             {widget.type} Settings
           </h2>
-          <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors">
+          <button onClick={onClose} disabled={isSaving} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-50">
             <X size={20} />
           </button>
         </div>
 
         <div className="p-6 overflow-y-auto flex-1">
           <form id="widgetSettingsForm" onSubmit={handleSubmit} className="space-y-6">
-            
-            {/* General Settings */}
             <div>
               <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">General</h3>
               <div className="space-y-4">
@@ -156,11 +150,9 @@ export default function WidgetSettingsModal({
               </div>
             </div>
 
-            {/* Data Settings */}
             <div>
               <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4 border-t pt-4">Data Configuration</h3>
               <div className="space-y-4">
-                
                 {isChart && (
                   <>
                     <div>
@@ -244,17 +236,54 @@ export default function WidgetSettingsModal({
                 )}
 
                 {isTable && (
-                  <div>
-                    <p className="text-sm text-gray-500">
-                      The table widget automatically displays the most recent orders. 
-                      Further column configuration can be added here.
-                    </p>
-                  </div>
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Visible Columns</label>
+                      <div className="grid grid-cols-2 gap-2 rounded-xl border border-gray-200 bg-gray-50 p-3">
+                        {TABLE_COLUMN_OPTIONS.map((column) => (
+                          <label key={column.key} className="flex items-center gap-2 text-sm text-gray-700">
+                            <input
+                              type="checkbox"
+                              checked={selectedColumns.includes(column.key)}
+                              onChange={() => handleTableColumnToggle(column.key)}
+                              className="h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                            />
+                            <span>{column.label}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Rows Per Page</label>
+                      <select
+                        name="pageSize"
+                        value={configParams.pageSize || 10}
+                        onChange={handleConfigChange}
+                        className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:ring-2 focus:ring-emerald-500 hover:border-emerald-300 outline-none transition-all shadow-sm bg-white"
+                      >
+                        {TABLE_PAGE_SIZE_OPTIONS.map((pageSize) => (
+                          <option key={pageSize} value={pageSize}>{pageSize} rows</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Default Status Filter</label>
+                      <select
+                        name="statusFilter"
+                        value={configParams.statusFilter || 'all'}
+                        onChange={handleConfigChange}
+                        className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:ring-2 focus:ring-emerald-500 hover:border-emerald-300 outline-none transition-all shadow-sm bg-white"
+                      >
+                        <option value="all">All statuses</option>
+                        <option value="Pending">Pending</option>
+                        <option value="In progress">In progress</option>
+                        <option value="Completed">Completed</option>
+                      </select>
+                    </div>
+                  </>
                 )}
-                
               </div>
             </div>
-
           </form>
         </div>
 
@@ -262,16 +291,18 @@ export default function WidgetSettingsModal({
           <button
             type="button"
             onClick={onClose}
-            className="px-6 py-2.5 rounded-lg font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 transition-colors shadow-sm"
+            disabled={isSaving}
+            className="px-6 py-2.5 rounded-lg font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 transition-colors shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
           >
             Cancel
           </button>
           <button
             type="submit"
             form="widgetSettingsForm"
-            className="px-6 py-2.5 rounded-lg font-medium text-white bg-emerald-600 hover:bg-emerald-700 transition-colors shadow-sm"
+            disabled={isSaving}
+            className="px-6 py-2.5 rounded-lg font-medium text-white bg-emerald-600 hover:bg-emerald-700 transition-colors shadow-sm disabled:cursor-not-allowed disabled:opacity-70"
           >
-            Apply Changes
+            {isSaving ? 'Applying...' : 'Apply Changes'}
           </button>
         </div>
       </div>
