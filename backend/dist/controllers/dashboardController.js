@@ -4,7 +4,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.saveDashboardWidgets = exports.getDashboard = void 0;
-const client_js_1 = __importDefault(require("../prisma/client.js"));
+const client_1 = __importDefault(require("../prisma/client"));
 const ALLOWED_WIDGET_TYPES = new Set(['KPI Card', 'Bar Chart', 'Line Chart', 'Pie Chart', 'Table']);
 const ALLOWED_GROUP_FIELDS = new Set(['product', 'status', 'city', 'country', 'createdBy']);
 const ALLOWED_VALUE_FIELDS = new Set(['totalAmount', 'quantity', 'unitPrice']);
@@ -209,11 +209,11 @@ function validateWidgetsPayload(rawWidgets) {
 }
 const getDashboard = async (_req, res) => {
     try {
-        let dashboard = await client_js_1.default.dashboard.findFirst({
+        let dashboard = await client_1.default.dashboard.findFirst({
             include: { widgets: true }
         });
         if (!dashboard) {
-            dashboard = await client_js_1.default.dashboard.create({
+            dashboard = await client_1.default.dashboard.create({
                 data: { name: 'Main Dashboard' },
                 include: { widgets: true }
             });
@@ -240,7 +240,7 @@ const saveDashboardWidgets = async (req, res) => {
     }
     const sanitizedWidgets = validation.widgets;
     try {
-        const dashboard = await client_js_1.default.dashboard.findUnique({
+        const dashboard = await client_1.default.dashboard.findUnique({
             where: { id: dashboardId },
             select: { id: true }
         });
@@ -248,7 +248,7 @@ const saveDashboardWidgets = async (req, res) => {
             res.status(404).json({ error: 'Dashboard not found' });
             return;
         }
-        await client_js_1.default.$transaction(async (tx) => {
+        await client_1.default.$transaction(async (tx) => {
             await tx.widget.deleteMany({
                 where: { dashboardId }
             });

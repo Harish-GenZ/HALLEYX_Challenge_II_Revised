@@ -1,0 +1,12 @@
+# Root gitignore
+node_modules
+.env
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode
+.idea

@@ -23,7 +23,7 @@ const LAYOUT_BREAKPOINTS: Breakpoint[] = ['lg', 'md', 'sm'];
 
 const ResponsiveGridLayout = WidthProvider(Responsive);
 const GRID_BREAKPOINTS: Record<Breakpoint, number> = { lg: 960, md: 640, sm: 0 };
-const GRID_COLS: Record<Breakpoint, number> = { lg: 12, md: 8, sm: 4 };
+const GRID_COLS: Record<Breakpoint, number> = { lg: 12, md: 8, sm: 1 };
 const DEFAULT_WIDGET_WIDTH = 4;
 const DEFAULT_WIDGET_HEIGHT = 3;
 const WIDGET_TYPES = [
@@ -253,14 +253,7 @@ export default function DashboardBuilder() {
     () => getDropDimensions(currentBreakpoint),
     [currentBreakpoint]
   );
-  const widgetMap = useMemo(
-    () => new Map(widgets.map((widget) => [widget.id, widget])),
-    [widgets]
-  );
-  const visibleLayout = useMemo(
-    () => layouts[currentBreakpoint] ?? layouts.lg,
-    [currentBreakpoint, layouts]
-  );
+
   const droppingItem = useMemo(
     () => draggingWidgetType ? { i: '__dropping__', x: 0, y: 0, ...activeDropDimensions } : undefined,
     [activeDropDimensions, draggingWidgetType]
@@ -601,7 +594,7 @@ export default function DashboardBuilder() {
       )}
 
       {isConfigMode && (
-        <div className={`fixed lg:relative top-0 w-72 bg-white border-r border-gray-200 p-6 flex flex-col h-full shrink-0 transition-transform duration-300 shadow-[2px_0_8px_-3px_rgba(0,0,0,0.1)] z-50 lg:z-20 ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
+        <div className={`fixed lg:relative top-0 w-[85vw] max-w-[280px] lg:w-72 bg-white border-r border-gray-200 p-6 flex flex-col h-full shrink-0 transition-transform duration-300 shadow-[2px_0_8px_-3px_rgba(0,0,0,0.1)] z-50 lg:z-20 ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
           <div className="flex justify-between items-center mb-2">
             <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Widget Library</h3>
             <button className="lg:hidden text-gray-400" onClick={() => setMobileMenuOpen(false)}>
@@ -614,7 +607,7 @@ export default function DashboardBuilder() {
             {WIDGET_TYPES.map((widgetType) => (
               <div
                 key={widgetType.type}
-                draggable
+                draggable={window.innerWidth >= 1024}
                 onClick={() => {
                   if (window.innerWidth < 1024) addWidgetToEnd(widgetType.type);
                 }}
@@ -642,7 +635,7 @@ export default function DashboardBuilder() {
           <div className="flex items-center justify-between w-full lg:w-auto">
             <div className="flex items-center space-x-3">
               {isConfigMode && (
-                <button className="lg:hidden p-2 text-gray-600 hover:bg-gray-100 rounded-lg mr-2" onClick={() => setMobileMenuOpen(true)}>
+                <button className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg mr-2" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
                   <Menu size={20} />
                 </button>
               )}
@@ -650,12 +643,12 @@ export default function DashboardBuilder() {
                 <div className="flex items-center space-x-3">
                   <h2 className="text-xl md:text-2xl font-bold text-gray-900 truncate">Dashboard</h2>
                   {toastMsg && (
-                    <div className={`hidden sm:flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-bold animate-in fade-in slide-in-from-left-2 duration-300 ${toastMsg.type === 'success'
+                    <div className={`hidden sm:flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-bold animate-in fade-in slide-in-from-left-2 duration-300 ${toastMsg?.type === 'success'
                       ? 'bg-emerald-100 text-emerald-700'
                       : 'bg-rose-100 text-rose-700'
                       }`}>
-                      {toastMsg.type === 'success' ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}
-                      <span>{toastMsg.text}</span>
+                      {toastMsg?.type === 'success' ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}
+                      <span>{toastMsg?.text}</span>
                     </div>
                   )}
                 </div>
@@ -712,9 +705,9 @@ export default function DashboardBuilder() {
             layouts={layouts}
             breakpoints={GRID_BREAKPOINTS}
             cols={GRID_COLS}
-            rowHeight={100}
+            rowHeight={currentBreakpoint === 'sm' ? 65 : 100}
             compactType="vertical"
-            preventCollision={true}
+            preventCollision={false}
             onBreakpointChange={(newBreakpoint) => setCurrentBreakpoint(newBreakpoint as Breakpoint)}
             onLayoutChange={handleLayoutChange}
             onDragStop={handleLayoutCommit}
@@ -727,12 +720,9 @@ export default function DashboardBuilder() {
             isResizable={isConfigMode}
             useCSSTransforms={true}
           >
-            {visibleLayout.map((layoutItem) => {
-              const widget = widgetMap.get(layoutItem.i);
-              if (!widget) return <div key={layoutItem.i}></div>;
-
+            {widgets.map((widget) => {
               return (
-                <div key={layoutItem.i} className="bg-white rounded-xl shadow-md border border-gray-100 flex flex-col group transition-all duration-200 hover:shadow-lg relative hover:z-50">
+                <div key={widget.id} className="bg-white rounded-xl shadow-md border border-gray-100 flex flex-col group transition-all duration-200 hover:shadow-lg relative hover:z-50">
                   <div className={`bg-white rounded-t-xl border-b border-gray-100 px-4 md:px-5 py-2.5 md:py-3 flex justify-between items-center transition-colors ${isConfigMode ? 'cursor-move group-hover:bg-slate-50' : ''}`}>
                     <h4 className="text-sm md:text-base font-semibold text-gray-800 truncate pr-2">{widget.title}</h4>
                     {isConfigMode && (
@@ -794,9 +784,9 @@ export default function DashboardBuilder() {
             ...editingWidget,
             config: {
               ...getDefaultWidgetConfig(editingWidget.type),
-              ...(editingWidget.config || {}),
+              ...(editingWidget?.config || {}),
             }
-          }}
+          } as any}
           onSave={handleSaveWidgetSettings}
           isSaving={widgetSettingsSaving}
           onClose={() => setEditingWidget(null)}

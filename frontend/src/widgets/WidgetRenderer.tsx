@@ -504,13 +504,13 @@ export default function WidgetRenderer({ widget, orders }: WidgetRendererProps) 
 
   if (type === 'KPI Card') {
     return (
-      <div className="flex h-full w-full items-center justify-center overflow-hidden p-4">
+      <div className="flex h-full w-full items-center justify-center overflow-hidden p-2 sm:p-4 @container">
         <div className="flex w-full flex-col items-center text-center">
-          <span className="mb-1 max-w-full text-xs font-medium uppercase tracking-wide text-gray-500 md:mb-2 md:text-sm">
+          <span className="mb-0.5 sm:mb-1 max-w-[90%] sm:max-w-full text-[10px] sm:text-xs font-medium uppercase tracking-wide text-gray-500 md:mb-2 md:text-sm">
             {config.aggregation || 'sum'} of {config.metric || 'totalAmount'}
           </span>
           <span
-            className="max-w-full overflow-hidden text-[clamp(1.8rem,5vw,4rem)] font-extrabold leading-none tracking-tight [overflow-wrap:anywhere]"
+            className="max-w-full overflow-hidden text-[clamp(1.5rem,15cqw,3rem)] sm:text-[clamp(1.8rem,5vw,4rem)] font-extrabold leading-tight tracking-tight [overflow-wrap:anywhere]"
             style={{ color }}
           >
             {formattedKpiValue}

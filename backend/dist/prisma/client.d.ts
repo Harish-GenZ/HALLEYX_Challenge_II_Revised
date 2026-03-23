@@ -1,7 +1,4 @@
 import { PrismaClient } from '@prisma/client';
-import { PrismaMariaDb } from '@prisma/adapter-mariadb';
-declare const prisma: PrismaClient<{
-    adapter: PrismaMariaDb;
-}, never, import("@prisma/client/runtime/client").DefaultArgs>;
+declare const prisma: PrismaClient<import(".prisma/client").Prisma.PrismaClientOptions, never, import("@prisma/client/runtime/library").DefaultArgs>;
 export default prisma;
 //# sourceMappingURL=client.d.ts.map

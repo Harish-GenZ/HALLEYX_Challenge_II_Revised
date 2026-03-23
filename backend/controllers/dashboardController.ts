@@ -1,6 +1,6 @@
 import type { Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
-import prisma from '../prisma/client.js';
+import prisma from '../prisma/client';
 
 const ALLOWED_WIDGET_TYPES = new Set(['KPI Card', 'Bar Chart', 'Line Chart', 'Pie Chart', 'Table']);
 const ALLOWED_GROUP_FIELDS = new Set(['product', 'status', 'city', 'country', 'createdBy']);

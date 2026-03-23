@@ -5,7 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.deleteOrder = exports.updateOrder = exports.getOrders = exports.createOrder = void 0;
 const client_1 = require("@prisma/client");
-const client_js_1 = __importDefault(require("../prisma/client.js"));
+const client_2 = __importDefault(require("../prisma/client"));
 const REQUIRED_ORDER_FIELDS = [
     'firstName',
     'lastName',
@@ -68,7 +68,7 @@ const createOrder = async (req, res) => {
             res.status(400).json({ error: 'Invalid order payload', details: validation.errors });
             return;
         }
-        const order = await client_js_1.default.order.create({
+        const order = await client_2.default.order.create({
             data: validation.data
         });
         res.status(201).json(order);
@@ -81,7 +81,7 @@ const createOrder = async (req, res) => {
 exports.createOrder = createOrder;
 const getOrders = async (_req, res) => {
     try {
-        const orders = await client_js_1.default.order.findMany({
+        const orders = await client_2.default.order.findMany({
             orderBy: { createdAt: 'desc' }
         });
         res.status(200).json(orders);
@@ -105,7 +105,7 @@ const updateOrder = async (req, res) => {
             res.status(400).json({ error: 'Invalid order payload', details: validation.errors });
             return;
         }
-        const order = await client_js_1.default.order.update({
+        const order = await client_2.default.order.update({
             where: { id: orderId },
             data: validation.data
         });
@@ -129,7 +129,7 @@ const deleteOrder = async (req, res) => {
         return;
     }
     try {
-        await client_js_1.default.order.delete({
+        await client_2.default.order.delete({
             where: { id: orderId }
         });
         res.status(204).send();

@@ -1,6 +1,6 @@
 import type { Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
-import prisma from '../prisma/client.js';
+import prisma from '../prisma/client';
 
 const REQUIRED_ORDER_FIELDS = [
   'firstName',
