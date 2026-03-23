@@ -74,7 +74,7 @@ function validateOrderPayload(payload: Record<string, unknown>): {
   };
 }
 
-function isOrderNotFoundError(error: unknown) {
+function isOrderNotFoundError(error: unknown): error is Prisma.PrismaClientKnownRequestError {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025';
 }
 

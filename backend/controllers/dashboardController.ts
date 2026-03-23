@@ -290,7 +290,7 @@ export const saveDashboardWidgets = async (req: Request, res: Response): Promise
       return;
     }
 
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: any) => {
       await tx.widget.deleteMany({
         where: { dashboardId }
       });
