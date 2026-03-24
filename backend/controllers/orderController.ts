@@ -139,28 +139,35 @@ function getPrismaErrorMessage(error: unknown): string {
 // POST /api/orders
 export const createOrder = async (req: Request, res: Response): Promise<void> => {
   try {
-    const body = (req.body ?? {}) as Record<string, unknown>;
-    const validation = validateAndSanitizeOrder(body);
+    const data = req.body;
 
-    if (!validation.data) {
-      res.status(400).json({
-        error: 'Invalid order data',
-        details: validation.errors,
-      });
-      return;
-    }
+    console.log("BACKEND RECEIVED:", data);
 
     const order = await prisma.order.create({
-      data: validation.data,
+      data: {
+        firstName: String(data.firstName || ""),
+        lastName: String(data.lastName || ""),
+        email: String(data.email || ""),
+        phone: String(data.phone || ""),
+        address: String(data.address || ""),
+        city: String(data.city || ""),
+        state: String(data.state || ""),
+        postalCode: String(data.postalCode || ""),
+        country: String(data.country || ""),
+        product: String(data.product || ""),
+        quantity: Number(data.quantity || 0),
+        unitPrice: Number(data.unitPrice || 0),
+        totalAmount: Number(data.totalAmount || 0),
+        status: String(data.status || "pending"),
+        createdBy: String(data.createdBy || "admin")
+      }
     });
 
     res.status(201).json(order);
-  } catch (error) {
-    console.error('createOrder error:', error);
-    res.status(500).json({
-      error: 'Failed to create order',
-      message: getPrismaErrorMessage(error),
-    });
+
+  } catch (err: any) {
+    console.error("CREATE ORDER ERROR:", err);
+    res.status(500).json({ error: err.message || "Failed to create order" });
   }
 };
 
