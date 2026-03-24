@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import type { FormEvent } from 'react';
-import { X } from 'lucide-react';
+import { X, AlertCircle } from 'lucide-react';
 import { api } from '../lib/api.ts';
+import axios from 'axios';
 
 interface Order {
   id?: number;
@@ -45,10 +46,40 @@ const CREATORS = [
   'Mr. Lucas Martin'
 ];
 
+/**
+ * Build a clean payload that exactly matches the backend Prisma schema.
+ * - Only includes fields that the backend expects
+ * - Converts numbers explicitly
+ * - Strips `id` and `totalAmount` (backend computes totalAmount)
+ */
+function buildOrderPayload(formData: Order) {
+  const quantity = Number(formData.quantity) || 1;
+  const unitPrice = Number(formData.unitPrice) || 0;
+
+  return {
+    firstName: (formData.firstName || '').trim(),
+    lastName: (formData.lastName || '').trim(),
+    email: (formData.email || '').trim(),
+    phone: (formData.phone || '').trim(),
+    address: (formData.address || '').trim(),
+    city: (formData.city || '').trim(),
+    state: (formData.state || '').trim(),
+    postalCode: (formData.postalCode || '').trim(),
+    country: (formData.country || '').trim(),
+    product: (formData.product || '').trim(),
+    quantity,
+    unitPrice,
+    totalAmount: Number((quantity * unitPrice).toFixed(2)),
+    status: formData.status || 'Pending',
+    createdBy: formData.createdBy || 'System',
+  };
+}
+
 export default function OrderModal({ order, onClose }: { order?: Order | null, onClose: (refresh?: boolean) => void }) {
   const [formData, setFormData] = useState<Order>(INITIAL_STATE);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
+  const [apiError, setApiError] = useState<string | null>(null);
 
   useEffect(() => {
     if (order) {
@@ -63,27 +94,38 @@ export default function OrderModal({ order, onClose }: { order?: Order | null, o
       [name]: name === 'quantity' || name === 'unitPrice' ? Number(value) : value
     }));
     
-    // Clear error
+    // Clear error for this field
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: '' }));
+    }
+    // Clear API error when user makes changes
+    if (apiError) {
+      setApiError(null);
     }
   };
 
   const validate = () => {
     const newErrors: Record<string, string> = {};
-    const requiredFields = ['firstName', 'lastName', 'email', 'phone', 'address', 'city', 'state', 'postalCode', 'country', 'product'];
+    const requiredFields: (keyof Order)[] = [
+      'firstName', 'lastName', 'email', 'phone',
+      'address', 'city', 'state', 'postalCode', 'country', 'product'
+    ];
 
-    requiredFields.forEach(field => {
-      if (!formData[field as keyof Order]) {
-        newErrors[field] = 'Please fill the field';
+    for (const field of requiredFields) {
+      const value = formData[field];
+      if (!value || (typeof value === 'string' && value.trim().length === 0)) {
+        newErrors[field] = 'Please fill this field';
       }
-    });
-
-    if (Number(formData.quantity) < 1) {
-      newErrors['quantity'] = 'Quantity cannot be less than 1';
     }
-    if (Number(formData.unitPrice) <= 0) {
-      newErrors['unitPrice'] = 'Please enter a unit price';
+
+    const quantity = Number(formData.quantity);
+    if (!Number.isFinite(quantity) || quantity < 1) {
+      newErrors['quantity'] = 'Quantity must be at least 1';
+    }
+
+    const unitPrice = Number(formData.unitPrice);
+    if (!Number.isFinite(unitPrice) || unitPrice <= 0) {
+      newErrors['unitPrice'] = 'Please enter a valid unit price';
     }
 
     setErrors(newErrors);
@@ -92,15 +134,16 @@ export default function OrderModal({ order, onClose }: { order?: Order | null, o
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    setApiError(null);
+
     if (!validate()) return;
 
     setLoading(true);
     try {
-      const payload = {
-        ...formData,
-        quantity: Number(formData.quantity),
-        unitPrice: Number(formData.unitPrice)
-      };
+      // Build a clean payload — no extra fields, correct types
+      const payload = buildOrderPayload(formData);
+
+      console.log('Sending order payload:', JSON.stringify(payload, null, 2));
 
       if (order?.id) {
         await api.put(`/orders/${order.id}`, payload);
@@ -109,8 +152,28 @@ export default function OrderModal({ order, onClose }: { order?: Order | null, o
       }
       onClose(true);
     } catch (error) {
-      console.error('Failed to save order', error);
-      alert('Failed to save order');
+      console.error('Failed to save order:', error);
+
+      // Extract a user-friendly error message
+      if (axios.isAxiosError(error)) {
+        const data = error.response?.data as { error?: string; message?: string; details?: Record<string, string> } | undefined;
+        const serverMsg = data?.error || data?.message;
+        const details = data?.details;
+
+        if (details && typeof details === 'object') {
+          // Map backend validation errors to form fields
+          setErrors(prev => ({ ...prev, ...details }));
+          setApiError(serverMsg || 'Please fix the highlighted fields.');
+        } else if (serverMsg) {
+          setApiError(serverMsg);
+        } else if (error.response?.status === 500) {
+          setApiError('Server error — please check the backend logs and database connection.');
+        } else {
+          setApiError(`Request failed (${error.response?.status || 'network error'}). Please try again.`);
+        }
+      } else {
+        setApiError('An unexpected error occurred. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -129,6 +192,13 @@ export default function OrderModal({ order, onClose }: { order?: Order | null, o
         </div>
 
         <div className="p-6 overflow-y-auto flex-1">
+          {apiError && (
+            <div className="mb-6 flex items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+              <AlertCircle size={18} className="mt-0.5 shrink-0" />
+              <span>{apiError}</span>
+            </div>
+          )}
+
           <form id="orderForm" onSubmit={handleSubmit} className="space-y-8">
             {/* Customer Details */}
             <div>
@@ -145,7 +215,7 @@ export default function OrderModal({ order, onClose }: { order?: Order | null, o
                     <input
                       type={field.type || 'text'}
                       name={field.name}
-                      value={formData[field.name as keyof Order]}
+                      value={formData[field.name as keyof Order] ?? ''}
                       onChange={handleChange}
                       className={`w-full px-4 py-2 rounded-lg border focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-shadow ${errors[field.name] ? 'border-red-500' : 'border-gray-300'}`}
                     />
@@ -181,7 +251,7 @@ export default function OrderModal({ order, onClose }: { order?: Order | null, o
                     <input
                       type="text"
                       name={field.name}
-                      value={formData[field.name as keyof Order]}
+                      value={formData[field.name as keyof Order] ?? ''}
                       onChange={handleChange}
                       className={`w-full px-4 py-2 rounded-lg border focus:ring-2 focus:ring-emerald-500 outline-none transition-shadow ${errors[field.name] ? 'border-red-500' : 'border-gray-300'}`}
                     />
