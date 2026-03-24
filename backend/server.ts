@@ -7,20 +7,24 @@ import dashboardRoutes from './routes/dashboardRoutes';
 
 const app = express();
 
-// CORS: allow the Vercel frontend URL in production, or all origins in dev
-const allowedOrigin = process.env.FRONTEND_URL;
+// CORS configuration
+const allowedOrigins = [
+  'https://halleyx-challenge-ii-revised.vercel.app',
+  'http://localhost:5173'
+];
+if (process.env.FRONTEND_URL) {
+  allowedOrigins.push(process.env.FRONTEND_URL);
+}
+
 app.use(
   cors({
-    origin: allowedOrigin
-      ? (origin, callback) => {
-          // Allow requests with no origin (e.g. server-to-server, curl)
-          if (!origin || origin === allowedOrigin) {
-            callback(null, true);
-          } else {
-            callback(new Error(`CORS: Origin ${origin} not allowed`));
-          }
-        }
-      : true, // allow all origins in dev (no FRONTEND_URL set)
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error(`CORS: Origin ${origin} not allowed`));
+      }
+    },
     credentials: true,
   })
 );
