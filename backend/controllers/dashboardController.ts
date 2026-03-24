@@ -71,12 +71,10 @@ function getDefaultWidgetConfig(type: string): Record<string, Prisma.InputJsonVa
   };
 }
 
-function validatePositiveInteger(value: unknown, fieldName: string, minimum: number): number | string {
-  const parsedValue = Number(value);
-  if (!Number.isInteger(parsedValue) || parsedValue < minimum) {
-    return `${fieldName} must be an integer greater than or equal to ${minimum}`;
-  }
-  return parsedValue;
+function safeInt(value: unknown, fallback: number, min: number): number {
+  const num = Number(value);
+  if (!Number.isFinite(num) || !Number.isInteger(num)) return fallback;
+  return num < min ? fallback : num;
 }
 
 function validateWidgetConfig(type: string, rawConfig: unknown): { config?: Prisma.InputJsonValue; error?: string } {
@@ -99,50 +97,42 @@ function validateWidgetConfig(type: string, rawConfig: unknown): { config?: Pris
     ['xAxis', 'yAxis', 'aggregation', 'color'].forEach((key) => allowedKeys.add(key));
   }
 
-  for (const key of Object.keys(rawConfig)) {
-    if (!allowedKeys.has(key)) {
-      return { error: `config.${key} is not allowed for widget type ${type}` };
-    }
-  }
-
+  // Strip unknown keys instead of rejecting (more forgiving)
   const sanitizedConfig: Record<string, Prisma.InputJsonValue> = {
     ...defaultConfig,
   };
 
   if (rawConfig.type !== undefined) {
-    if (rawConfig.type !== normalizeWidgetConfigType(type)) {
-      return { error: `config.type must be ${normalizeWidgetConfigType(type)}` };
-    }
-    sanitizedConfig.type = rawConfig.type;
+    const expected = normalizeWidgetConfigType(type);
+    // Auto-correct the type instead of rejecting
+    sanitizedConfig.type = expected;
   }
 
   if (type === 'Table') {
     if (rawConfig.columns !== undefined) {
-      if (!Array.isArray(rawConfig.columns) || rawConfig.columns.length === 0) {
-        return { error: 'config.columns must contain at least one allowed column' };
+      if (Array.isArray(rawConfig.columns) && rawConfig.columns.length > 0) {
+        const validColumns = rawConfig.columns.filter(
+          (col) => typeof col === 'string' && ALLOWED_TABLE_COLUMNS.has(col)
+        );
+        if (validColumns.length > 0) {
+          sanitizedConfig.columns = Array.from(new Set(validColumns as string[]));
+        }
+        // If no valid columns, keep the default
       }
-
-      const invalidColumn = rawConfig.columns.find((column) => typeof column !== 'string' || !ALLOWED_TABLE_COLUMNS.has(column));
-      if (invalidColumn) {
-        return { error: `config.columns contains unsupported column "${String(invalidColumn)}"` };
-      }
-
-      sanitizedConfig.columns = Array.from(new Set(rawConfig.columns as string[]));
     }
 
     if (rawConfig.pageSize !== undefined) {
       const pageSize = Number(rawConfig.pageSize);
-      if (!Number.isInteger(pageSize) || !ALLOWED_PAGE_SIZES.has(pageSize)) {
-        return { error: 'config.pageSize must be one of 5, 10, 20, or 50' };
+      if (Number.isInteger(pageSize) && ALLOWED_PAGE_SIZES.has(pageSize)) {
+        sanitizedConfig.pageSize = pageSize;
       }
-      sanitizedConfig.pageSize = pageSize;
+      // If invalid, keep the default
     }
 
     if (rawConfig.statusFilter !== undefined) {
-      if (typeof rawConfig.statusFilter !== 'string' || !ALLOWED_STATUS_FILTERS.has(rawConfig.statusFilter)) {
-        return { error: 'config.statusFilter is invalid' };
+      if (typeof rawConfig.statusFilter === 'string' && ALLOWED_STATUS_FILTERS.has(rawConfig.statusFilter)) {
+        sanitizedConfig.statusFilter = rawConfig.statusFilter;
       }
-      sanitizedConfig.statusFilter = rawConfig.statusFilter;
     }
 
     return { config: sanitizedConfig };
@@ -150,129 +140,157 @@ function validateWidgetConfig(type: string, rawConfig: unknown): { config?: Pris
 
   if (type === 'KPI Card') {
     if (rawConfig.metric !== undefined) {
-      if (typeof rawConfig.metric !== 'string' || !ALLOWED_KPI_FIELDS.has(rawConfig.metric)) {
-        return { error: 'config.metric is invalid' };
+      if (typeof rawConfig.metric === 'string' && ALLOWED_KPI_FIELDS.has(rawConfig.metric)) {
+        sanitizedConfig.metric = rawConfig.metric;
       }
-      sanitizedConfig.metric = rawConfig.metric;
     }
   } else {
     if (rawConfig.xAxis !== undefined) {
-      if (typeof rawConfig.xAxis !== 'string' || !ALLOWED_GROUP_FIELDS.has(rawConfig.xAxis)) {
-        return { error: 'config.xAxis is invalid' };
+      if (typeof rawConfig.xAxis === 'string' && ALLOWED_GROUP_FIELDS.has(rawConfig.xAxis)) {
+        sanitizedConfig.xAxis = rawConfig.xAxis;
       }
-      sanitizedConfig.xAxis = rawConfig.xAxis;
     }
 
     if (rawConfig.yAxis !== undefined) {
-      if (typeof rawConfig.yAxis !== 'string' || !ALLOWED_VALUE_FIELDS.has(rawConfig.yAxis)) {
-        return { error: 'config.yAxis is invalid' };
+      if (typeof rawConfig.yAxis === 'string' && ALLOWED_VALUE_FIELDS.has(rawConfig.yAxis)) {
+        sanitizedConfig.yAxis = rawConfig.yAxis;
       }
-      sanitizedConfig.yAxis = rawConfig.yAxis;
     }
   }
 
   if (rawConfig.aggregation !== undefined) {
-    if (typeof rawConfig.aggregation !== 'string' || !ALLOWED_AGGREGATIONS.has(rawConfig.aggregation)) {
-      return { error: 'config.aggregation is invalid' };
+    if (typeof rawConfig.aggregation === 'string' && ALLOWED_AGGREGATIONS.has(rawConfig.aggregation)) {
+      sanitizedConfig.aggregation = rawConfig.aggregation;
     }
-    sanitizedConfig.aggregation = rawConfig.aggregation;
   }
 
   if (rawConfig.color !== undefined) {
-    if (typeof rawConfig.color !== 'string' || !COLOR_PATTERN.test(rawConfig.color)) {
-      return { error: 'config.color must be a valid hex color' };
+    if (typeof rawConfig.color === 'string' && COLOR_PATTERN.test(rawConfig.color)) {
+      sanitizedConfig.color = rawConfig.color;
     }
-    sanitizedConfig.color = rawConfig.color;
   }
 
   return { config: sanitizedConfig };
 }
 
-function validateWidgetsPayload(rawWidgets: unknown): { widgets?: SanitizedWidget[]; error?: string } {
+function sanitizeWidget(rawWidget: unknown, index: number): { widget?: SanitizedWidget; error?: string } {
+  if (!isPlainObject(rawWidget)) {
+    return { error: `widgets[${index}] must be an object` };
+  }
+
+  // Type: required, must be a valid widget type
+  const type = typeof rawWidget.type === 'string' ? rawWidget.type.trim() : '';
+  if (!ALLOWED_WIDGET_TYPES.has(type)) {
+    return { error: `widgets[${index}].type "${type}" is not a valid widget type` };
+  }
+
+  // Layout fields: provide defaults for missing/invalid values
+  const width = safeInt(rawWidget.width, 4, 1);
+  const clampedWidth = Math.min(width, 12);
+  const height = safeInt(rawWidget.height, 4, 2);
+  const positionX = safeInt(rawWidget.positionX, 0, 0);
+  const positionY = safeInt(rawWidget.positionY, 0, 0);
+
+  // Clamp positionX so widget fits in 12-column grid
+  const safePositionX = positionX + clampedWidth > 12 ? Math.max(0, 12 - clampedWidth) : positionX;
+
+  // Title: default to the widget type if missing
+  const title =
+    typeof rawWidget.title === 'string' && rawWidget.title.trim().length > 0
+      ? rawWidget.title.trim()
+      : type;
+
+  // Config: validate and provide defaults
+  const configValidation = validateWidgetConfig(type, rawWidget.config);
+  if (!configValidation.config) {
+    return { error: `widgets[${index}]: ${configValidation.error}` };
+  }
+
+  return {
+    widget: {
+      type,
+      title,
+      width: clampedWidth,
+      height,
+      positionX: safePositionX,
+      positionY,
+      config: configValidation.config,
+    },
+  };
+}
+
+function sanitizeWidgetsArray(rawWidgets: unknown): { widgets?: SanitizedWidget[]; error?: string } {
   if (!Array.isArray(rawWidgets)) {
+    // If not provided, treat as empty array (no widgets)
+    if (rawWidgets === undefined || rawWidgets === null) {
+      return { widgets: [] };
+    }
     return { error: 'widgets must be an array' };
   }
 
   const sanitizedWidgets: SanitizedWidget[] = [];
 
   for (const [index, rawWidget] of rawWidgets.entries()) {
-    if (!isPlainObject(rawWidget)) {
-      return { error: `widgets[${index}] must be an object` };
+    const result = sanitizeWidget(rawWidget, index);
+    if (!result.widget) {
+      return { error: result.error };
     }
-
-    if (typeof rawWidget.type !== 'string' || !ALLOWED_WIDGET_TYPES.has(rawWidget.type)) {
-      return { error: `widgets[${index}].type is invalid` };
-    }
-
-    const width = validatePositiveInteger(rawWidget.width, `widgets[${index}].width`, 1);
-    if (typeof width === 'string') return { error: width };
-    if (width > 12) return { error: `widgets[${index}].width cannot exceed 12` };
-
-    const height = validatePositiveInteger(rawWidget.height, `widgets[${index}].height`, 2);
-    if (typeof height === 'string') return { error: height };
-
-    const positionX = validatePositiveInteger(rawWidget.positionX, `widgets[${index}].positionX`, 0);
-    if (typeof positionX === 'string') return { error: positionX };
-
-    const positionY = validatePositiveInteger(rawWidget.positionY, `widgets[${index}].positionY`, 0);
-    if (typeof positionY === 'string') return { error: positionY };
-
-    if (positionX + width > 12) {
-      return { error: `widgets[${index}] exceeds the 12-column grid` };
-    }
-
-    const configValidation = validateWidgetConfig(rawWidget.type, rawWidget.config);
-    if (!configValidation.config) {
-      return { error: `widgets[${index}].${configValidation.error}` };
-    }
-
-    const title = typeof rawWidget.title === 'string' && rawWidget.title.trim().length > 0
-      ? rawWidget.title.trim()
-      : rawWidget.type;
-
-    sanitizedWidgets.push({
-      type: rawWidget.type,
-      title,
-      width,
-      height,
-      positionX,
-      positionY,
-      config: configValidation.config,
-    });
+    sanitizedWidgets.push(result.widget);
   }
 
   return { widgets: sanitizedWidgets };
 }
 
+function getPrismaErrorMessage(error: unknown): string {
+  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    return `Database error [${error.code}]: ${error.message}`;
+  }
+  if (error instanceof Prisma.PrismaClientValidationError) {
+    return `Validation error: ${error.message}`;
+  }
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return 'An unexpected error occurred';
+}
+
+// GET /api/dashboard
 export const getDashboard = async (_req: Request, res: Response): Promise<void> => {
   try {
     let dashboard = await prisma.dashboard.findFirst({
-      include: { widgets: true }
+      include: { widgets: true },
     });
 
     if (!dashboard) {
       dashboard = await prisma.dashboard.create({
         data: { name: 'Main Dashboard' },
-        include: { widgets: true }
+        include: { widgets: true },
       });
     }
 
     res.status(200).json(dashboard);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Failed to fetch dashboard' });
+    console.error('getDashboard error:', error);
+    res.status(500).json({
+      error: 'Failed to fetch dashboard',
+      message: getPrismaErrorMessage(error),
+    });
   }
 };
 
+// POST /api/dashboard/:id/widgets
 export const saveDashboardWidgets = async (req: Request, res: Response): Promise<void> => {
+  // Parse and validate dashboard ID
   const rawDashboardId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const dashboardId = Number(rawDashboardId);
-  if (!Number.isInteger(dashboardId) || dashboardId <= 0) {
-    res.status(400).json({ error: 'Invalid dashboard id' });
+  if (!Number.isFinite(dashboardId) || !Number.isInteger(dashboardId) || dashboardId <= 0) {
+    res.status(400).json({ error: 'Invalid dashboard id. Must be a positive integer.' });
     return;
   }
 
-  const validation = validateWidgetsPayload((req.body as { widgets?: unknown }).widgets);
+  // Parse and validate widgets
+  const body = (req.body ?? {}) as Record<string, unknown>;
+  const validation = sanitizeWidgetsArray(body.widgets);
   if (!validation.widgets) {
     res.status(400).json({ error: validation.error });
     return;
@@ -280,9 +298,10 @@ export const saveDashboardWidgets = async (req: Request, res: Response): Promise
   const sanitizedWidgets = validation.widgets;
 
   try {
+    // Verify dashboard exists
     const dashboard = await prisma.dashboard.findUnique({
       where: { id: dashboardId },
-      select: { id: true }
+      select: { id: true },
     });
 
     if (!dashboard) {
@@ -290,9 +309,10 @@ export const saveDashboardWidgets = async (req: Request, res: Response): Promise
       return;
     }
 
+    // Replace all widgets in a transaction
     await prisma.$transaction(async (tx: any) => {
       await tx.widget.deleteMany({
-        where: { dashboardId }
+        where: { dashboardId },
       });
 
       if (sanitizedWidgets.length > 0) {
@@ -305,15 +325,18 @@ export const saveDashboardWidgets = async (req: Request, res: Response): Promise
             height: widget.height,
             positionX: widget.positionX,
             positionY: widget.positionY,
-            config: widget.config
-          }))
+            config: widget.config,
+          })),
         });
       }
     });
 
     res.status(200).json({ message: 'Dashboard layout saved successfully' });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Failed to save dashboard widgets' });
+    console.error('saveDashboardWidgets error:', error);
+    res.status(500).json({
+      error: 'Failed to save dashboard widgets',
+      message: getPrismaErrorMessage(error),
+    });
   }
 };
